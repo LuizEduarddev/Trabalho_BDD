@@ -1,16 +1,22 @@
+CC = gcc
+CFLAGS = -I/usr/include/postgresql
+LDFLAGS = -lpq
+
 all: start
 
 start: main.o functions.o
-	gcc -o start main.o functions.o -I/usr/include/postgresql -lpq
+	$(CC) -o start main.o functions.o $(LDFLAGS)
 
 main.o: src/main.c files/functions.h
-	gcc -o main.o src/main.c -c -I/usr/include/postgresql -lpq
+	$(CC) $(CFLAGS) src/main.c -c
 
 functions.o: src/functions.c files/functions.h
-	gcc -o functions.o src/functions.c -c -I/usr/include/postgresql -lpq
+	$(CC) $(CFLAGS) src/functions.c -c
 
 run: start
 	./start localhost 5432 postgres postgres 123
 
 clean:
-	rm -f *.o start
+	rm start
+	rm -f functions.o
+	rm -f main.o

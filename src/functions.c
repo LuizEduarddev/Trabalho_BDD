@@ -85,25 +85,42 @@ void insert_intodb(PGconn *conn)
     // Pega a quantidade de colunas da tabela
     int numCol = PQnfields(resultado);
 
-    while (op != 0)
+    while (op != 1)
     {
         char nomeCol[30];
         char tipoCol[30];
         for (int i=0; i < numCol; i++)
         {
             printf("Coluna %d.\n", i);
-            printf("Tipo da coluna: %s.\n", PQftypeName(conn, PQftype(resultado, i)));
-    
-            strcpy(nomeCol, PQgetvalue(resultado, i, 0));
-            strcpy(tipoCol, PQftypeName(conn, PQftype(resultado, i)));
+            printf("Tipo da coluna: %s", pegaTipo(conn, i, tipoCol, resultado));
+            printf("Nome da coluna %s", PQfname(resultado, i));
+            
+            strcpy(nomeCol, PQfname(resultado, i));
+            strcpy(tipoCol, pegaTipo(conn, i, tipoCol, resultado));
 
             funcType(conn, nomeCol, tipoCol, nomeTab);
 
             fprintf(stdout, "Inserido com sucesso.\n");
+
+            fprintf(stdout, "Deseja inserir mais algum dado na tabela?\n0 - Sim\n1 - Nao");
+            scanf("%d", &op);
         }
     }
 }
 
+char *pegaTipo(PGconn *conn, int i, char *tipoCol, PGresult *resultado)
+{
+    Oid columnType = PQftype(resultado, i);
+    char *typeName;
+    // Consulta o catálogo do sistema pg_type para obter o nome do tipo de dados
+    PGresult *typeResult = PQexecParams(conn, "SELECT typname FROM pg_type WHERE oid = $1", 1, NULL, &columnType, NULL, NULL, 0);
+    if (PQresultStatus(typeResult) == PGRES_TUPLES_OK && PQntuples(typeResult) > 0) {
+        typeName = PQgetvalue(typeResult, 0, 0);
+        printf("Tipo de dados da coluna %d: %s\n", i, typeName);
+    }
+
+    return typeName;
+}
 
 void funcType(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
 {
@@ -255,7 +272,7 @@ void create_table(PGconn *conn)
     strcpy(consulta, getType(nomeTab));
     
 
-    resultado = PGexec(conn, consulta);
+    resultado = PQexec(conn, consulta);
 
     if (PQresultStatus(resultado) != PGRES_COMMAND_OK) {
         fprintf(stderr, "Falha na criacao da tabela.\nErro: %s\n", PQerrorMessage(conn));
@@ -321,6 +338,5 @@ char *getType(char *nomeTab)
 
     fprintf("String\n%s\n", consulta); 
     //sprintf(consulta, "CREATE TABLE %s (%s)", nomeTab, nomeVariavel);
-    
-
 }
+
