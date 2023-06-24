@@ -4,7 +4,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include<stdbool.h>
-
+#include<ctype.h>
 /*Definicoes para facilitar os retornos de funcao*/
 #define ERRO -1
 #define SUCESSO 0
@@ -22,32 +22,9 @@ void close_connection(PGconn *conn)
     PQfinish(conn);
 }
 
-PGconn* start_connection()
-{
-    /*Inicia a conexao com o banco de dados e retorna um ponteiro para esta conexao*/
-    /*Esta estruct basicamente tem os dados do db, como senha nome de usuario e etc*/
-    PGconn *conn = PQconnectdb("password=masterkey user=postgres dbname=concrete");
-    
-    if (PQstatus(conn) == CONNECTION_BAD)
-    {
-        /*Caso o retorno da funcao pqstatus seja -1 a conexao falhou*/
-        fprintf(stderr, "A conexao com o banco de dados falhou: %s\n", PQerrorMessage(conn));
-        close_connection(conn);
-    }
-    else
-    {
-        /*Caso contrario os dados do db sao retornados ao usuario*/
-        printf("Banco de dados com conexao estavel.\n");
-        fprintf(stdout, "Usuario: %s\n", PQuser(conn));
-        fprintf(stdout, "Nome do data base: %s\n", PQdb(conn));
-        fprintf(stdout, "Senha: %s\n", PQpass(conn));
-
-        return conn;
-    }
-}
-
 void insert_intodb(PGconn *conn)
 {
+    
     /*
         Para inserir no database pegamos a struct para a conexao com o db
         Em seguida pegamos a struct PQresult, que basicamente retorna os dados da tabela
@@ -65,23 +42,23 @@ void insert_intodb(PGconn *conn)
     {
         fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
         PQclear(resultado);
-        do_exit(conn);
+        close_connection(conn);
     }
 
 
-    tabelasDB(conn, resultado);
+    tabelasDB(conn);
 
     char nomeTab[LEN];
     int erro = SUCESSO;
     fprintf(stdout, "Qual tabela deseja inserir um valor? ");
     gets(nomeTab);
 
-    erro = isinDB(conn, resultado, nomeTab);
+    erro = isinDB(conn, nomeTab);
     while (erro == ERRO)
     {
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
         gets(nomeTab);
-        erro = isinDB(conn, resultado, nomeTab);
+        erro = isinDB(conn, nomeTab);
     }
 
     /*
@@ -93,7 +70,7 @@ void insert_intodb(PGconn *conn)
 
     int op = -1;
     char inserir_tabela[LEN];
-    sprtinf(inserir_tabela, "SELECT * FROM %s", nomeTab);
+    sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
     
     resultado = PQexec(conn, inserir_tabela);
     
@@ -126,6 +103,7 @@ void insert_intodb(PGconn *conn)
         }
     }
 }
+
 
 void funcType(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
 {
@@ -202,8 +180,11 @@ void GoToString(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
     }
 }
 
-void tabelasDB(PGconn *conn, PGresult *resultado)
+void tabelasDB(PGconn *conn)
 {
+    PGresult *resultado;
+
+    resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
     /*
         Esta variavel aqui faz o seguinte, pega a quantidade de tabelas baseado no retorno da funcao
         PQexec. 
@@ -220,8 +201,11 @@ void tabelasDB(PGconn *conn, PGresult *resultado)
     }
 }
 
-int isinDB(PGconn *conn, PGresult *resultado, char *nomeCol)
+int isinDB(PGconn *conn, char *nomeCol)
 {
+    PGresult *resultado;
+
+    resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
     /*
         Esta variavel aqui faz o seguinte, pega a quantidade de tabelas baseado no retorno da funcao
         PQexec. 
@@ -269,7 +253,7 @@ void create_table(PGconn *conn)
     gets(nomeTab);
 
     strcpy(consulta, getType(nomeTab));
-
+    
 
     resultado = PGexec(conn, consulta);
 
