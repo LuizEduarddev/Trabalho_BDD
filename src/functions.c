@@ -296,7 +296,7 @@ char *getType(char *nomeTab)
     char arrayQuery[40][LEN];
     char nomeVariavel[LEN];
     int op, j, lenQuery = 0;
-    fprintf(stdout, "Tipos disponiveis de variaveis: ");
+    fprintf(stdout, "Tipos disponiveis de variaveis: \n");
     fprintf(stdout, "1 - Inteiro\n2 - Decimal\n3 - varchar\n: ");
 
     /*
@@ -340,3 +340,329 @@ char *getType(char *nomeTab)
     //sprintf(consulta, "CREATE TABLE %s (%s)", nomeTab, nomeVariavel);
 }
 
+void specTable(PGconn *conn)
+{
+    PGresult *resultado;
+
+    resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
+
+    /*
+        O que acontece neste if eh, caso ocorra uma falha na requisao das tabelas, ele retorna um erro e fecha o db
+    */
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
+    {
+        fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
+        PQclear(resultado);
+        close_connection(conn);
+    }
+
+    tabelasDB(conn);
+
+    char nomeTab[LEN];
+    int erro = SUCESSO;
+    fprintf(stdout, "Qual tabela deseja ver os campos e tipos de dado?\n: ");
+    gets(nomeTab);
+
+    erro = isinDB(conn, nomeTab);
+    while (erro == ERRO)
+    {
+        fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
+        gets(nomeTab);
+        erro = isinDB(conn, nomeTab);
+    }
+
+    /*
+        Este clear serve para limpar o conteudo presente na variavel resultado
+        Para que caso venha a ser usada novamente, nao ocorra nenhum tipo de erro
+        como substituicao dos dados.
+    */
+    PQclear(resultado);
+
+    int op = -1;
+    char inserir_tabela[LEN];
+    sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
+    
+    resultado = PQexec(conn, inserir_tabela);
+    
+    /*Caso o resultado de SELECT seja um erro, finaliza a conexao*/
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK)
+    {
+        fprintf(stderr, "Erro na busca da tabela.\nErro: %s", PQresultErrorMessage(resultado));
+        PQclear(resultado);
+        close_connection(conn);
+    }
+
+    // Pega a quantidade de colunas da tabela
+    int numCol = PQnfields(resultado);
+
+    char nomeCol[30];
+    char tipoCol[30];
+    for (int i=0; i < numCol; i++)
+    {
+        printf("Coluna %d.\n", i);
+        printf("Tipo da coluna: %s\n", pegaTipo(conn, i, tipoCol, resultado));
+    }
+}
+
+void showData(PGconn *conn)
+{
+    PGresult *resultado;
+
+    resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
+
+    /*
+        O que acontece neste if eh, caso ocorra uma falha na requisao das tabelas, ele retorna um erro e fecha o db
+    */
+    tryError(conn, resultado);
+
+    tabelasDB(conn);
+
+    char nomeTab[LEN];
+    char nomeCol[LEN];
+    char typeCol[LEN];
+    char inserir_tabela[LEN];
+    char filter[LEN];
+    int erro = SUCESSO;
+    fprintf(stdout, "Qual tabela deseja ver para filtar?\n: ");
+    gets(nomeTab);
+
+    erro = isinDB(conn, nomeTab);
+    while (erro == ERRO)
+    {
+        fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
+        gets(nomeTab);
+        erro = isinDB(conn, nomeTab);
+    }
+
+    /*
+        Este clear serve para limpar o conteudo presente na variavel resultado
+        Para que caso venha a ser usada novamente, nao ocorra nenhum tipo de erro
+        como substituicao dos dados.
+    */
+    PQclear(resultado);
+
+    fprintf(stdout, "OK!\nAgora precisamos filtar.\nA filtragem é simples, primeiro escolha uma coluna, a tabela gerada será baseada nesta coluna.\nEX: coluna_nome = joao. O resultado sera uma tabela com todos os nomes joao.");
+    
+    sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
+    resultado = PQexec(conn, inserir_tabela);
+    tryError(conn, resultado);
+
+    
+    fprintf(stdout, "Digite o nome da coluna: ");
+    gets(nomeCol);
+
+    fprintf(stdout, "Certo, agora escolha um valor para filtrar\nOBS: O valor pode ser um nome, uma string ou até mesmo um número float ou inteiro\n: ");
+    gets(filter);
+
+    fprintf(stdout, "Perfeito, agora como deve ser feita esta filtragem?\nEscolha algum dos itens do menu\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual\n");
+    strcpy(inserir_tabela, cathSwitch(nomeCol, filter, nomeTab)); 
+
+    resultado = PQexec(conn, inserir_tabela);
+    
+    /*Caso o resultado de SELECT seja um erro, finaliza a conexao*/
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK)
+    {
+        fprintf(stderr, "Erro na busca da tabela.\nErro: %s", PQresultErrorMessage(resultado));
+        PQclear(resultado);
+        close_connection(conn);
+    }
+}
+
+void tryError(PGconn *conn, PGresult *resultado)
+{
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
+    {
+        fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
+        PQclear(resultado);
+        close_connection(conn);
+    }
+}
+
+char *cathSwitch(char *nomeCol, char *filter, char *nomeTab)
+{
+    int op = 0;
+    char retorno[LEN];
+    //1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual
+    printf(": ");
+    scanf("%d", &op);
+
+    switch(op)
+    {
+        case 1:
+        sprintf(retorno, "SELECT * FROM %s WHERE %s > %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 2:
+        sprintf(retorno, "SELECT * FROM %s WHERE %s >= %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 3:
+        sprintf(retorno, "SELECT * FROM %s WHERE %s < %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 4:
+        sprintf(retorno, "SELECT * FROM %s WHERE %s <= %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 5:
+        sprintf(retorno, "SELECT * FROM %s WHERE %s != %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 6:
+        sprintf(retorno, "SELECT * FROM %s WHERE %s = %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+    }
+}
+
+void rmData(PGconn *conn)
+{
+    PGresult *resultado;
+
+    resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
+
+    /*
+        O que acontece neste if eh, caso ocorra uma falha na requisao das tabelas, ele retorna um erro e fecha o db
+    */
+    tryError(conn, resultado);
+
+    tabelasDB(conn);
+
+    char nomeTab[LEN];
+    char nomeCol[LEN];
+    char typeCol[LEN];
+    char inserir_tabela[LEN];
+    char filter[LEN];
+    int erro = SUCESSO;
+    int op = 0;
+    fprintf(stdout, "Estas sao as tabelas disponiveis, deseja apagar uma tabela, ou um item de uma tabela?1 - Apagar a tabela\n2 - Apagar um item da tabela\n: ");
+    scanf("%d", &op);
+
+    if (op == 1)
+    {
+        rmTabela(conn);
+        return;
+    }
+    else if(op == 2)
+    {
+        rmItem(conn);
+        return;
+    }
+    else
+    {
+        printf("Fora da lista.\n");
+        return;
+    }
+}
+
+void rmTabela(PGconn *conn)
+{
+    PGresult *resultado;
+    char nomeTab[LEN];
+    char execucao[LEN];
+    int erro = SUCESSO;
+    int op = 0;
+
+    fprintf(stdout, "Digite o nome da tabela que deseja remover.\n: ");
+    gets(nomeTab);
+
+    erro = isinDB(conn, nomeTab);
+    while (erro == ERRO)
+    {
+        fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
+        gets(nomeTab);
+        erro = isinDB(conn, nomeTab);
+    }
+
+    fprintf(stdout, "Ao fazer isto, TODOS os dados de sua tabela serao apagados, tem certeza que quer fazer isto?\n1 - Sim, sei de todos os problemas que isto pode causar\n2 - Nao, nao quero fazer isto\n: ");
+    scanf("%d", &op);
+
+    sprintf(execucao, "DROP TABLE %s", nomeTab);
+
+    resultado = PQexce(conn, execucao);
+
+    tryError(conn, resultado);
+    return;
+}
+
+void rmItem(PGconn *conn)
+{
+    PGresult *resultado;
+    char nomeTab[LEN];
+    char search[LEN];
+    char filtro[LEN];
+    char nomeCol[LEN];
+    int erro = SUCESSO;
+
+    fprintf(stdout, "Certo, e de qual tabela deseja apagar algum item?\n: ");
+    gets(nomeTab);
+
+    erro = isinDB(conn, nomeTab);
+    while (erro == ERRO)
+    {
+        fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
+        gets(nomeTab);
+        erro = isinDB(conn, nomeTab);
+    }
+
+    sprintf(search, "SELECT * FROM %s", nomeTab);
+
+    resultado = PQexec(conn, search);
+    
+    fprintf(stdout, "OK!\nAgora digite o valor que desejar deletar\nEX: nome = joao (todos os joao serao apagados da coluna nome.)\n: ");
+    gets(filtro);
+
+    fprintf(stdout, "PERFEITO!\nAgora digite o nome da coluna que tera o item deletado.\n: ");
+    gets(nomeCol);
+
+    fprintf(stdout, "So mais uma coisinha, digite o tipo da exclusao\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual");
+
+    switchItem(conn, nomeTab, filtro, nomeCol);
+}
+
+void switchItem(PGconn *conn, char *nomeTab, char *filter, char *nomeCol)
+{
+    int op = 0;
+    char retorno[LEN];
+    //1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual
+    printf(": ");
+    scanf("%d", &op);
+
+    switch(op)
+    {
+        case 1:
+        sprintf(retorno, "DELETE FROM %s WHERE %s > %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 2:
+        sprintf(retorno, "DELETE FROM %s WHERE %s >= %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 3:
+        sprintf(retorno, "DELETE FROM %s WHERE %s < %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 4:
+        sprintf(retorno, "DELETE FROM %s WHERE %s <= %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 5:
+        sprintf(retorno, "DELETE FROM %s WHERE %s != %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+
+        case 6:
+        sprintf(retorno, "DELETE FROM %s WHERE %s = %s", nomeTab, nomeCol, filter);
+        return retorno;
+        break;
+    }
+}

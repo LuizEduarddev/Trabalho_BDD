@@ -14,7 +14,7 @@ functions.o: src/functions.c files/functions.h
 	$(CC) $(CFLAGS) src/functions.c -c
 
 run: start
-	./start localhost 5432 postgres postgres 123
+	./start localhost 5432 postgres postgres 1234 
 
 clean:
 	rm start

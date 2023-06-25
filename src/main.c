@@ -6,6 +6,7 @@
 
 int main(int argc, char *argv[])
 {
+    int op = 0;   
     if (argc != 6) {
         printf("Uso: %s <host> <porta> <banco_de_dados> <usuário> <senha>\n", argv[0]);
         return 1;
@@ -25,8 +26,44 @@ int main(int argc, char *argv[])
         PQfinish(conn);
         return 1;
     }
-    char nomeTab[40] = "avioes";
+    
+    fprintf(stdout, "----- MENU DE OPCOES -----");
+    fprintf(stdout, "----- 1 - Lista de tabelas -----");
+    fprintf(stdout, "-----  2 - Expecificacoes de campos e tipos de dados -----");
+    fprintf(stdout, "----- 3 - Criar tabela -----");
+    fprintf(stdout, "----- 4 - Inserir dados em tabela -----");
+    fprintf(stdout, "----- 5 -  Exibir os dados em uma tabela -----");
+    fprintf(stdout, "----- 6 - Remover dados em uma tabela -----");
+    fprintf(stdout, "----- ----- ----- ----- ----- -----");
 
-    getType(nomeTab);
+    scanf("%d", &op);
+
+    switch(op)
+    {
+        case 1:
+        tabelasDB(conn);
+        break;
+
+        case 2:
+        specTable;
+        break;
+
+        case 3:
+        create_table(conn);
+        break;
+
+        case 4:
+        insert_intodb(conn);
+        break;
+
+        case 5:
+        showData(conn);
+        break;
+
+        case 6:
+        
+
+    }
+    
     
 }
