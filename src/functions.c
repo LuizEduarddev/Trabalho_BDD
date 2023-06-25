@@ -266,68 +266,55 @@ void create_table(PGconn *conn)
     char consulta[LEN];
     int op = 0;
 
-    fprintf(stdout, "Digite o nome da tabela a ser criada");
-    gets(nomeTab);
+    getchar();
 
-    strcpy(consulta, getType(nomeTab));
+    fprintf(stdout, "Digite o nome da tabela a ser criada: ");
+    fgets(nomeTab, LEN, stdin);
     
+    getType(nomeTab, consulta);
 
     resultado = PQexec(conn, consulta);
 
     if (PQresultStatus(resultado) != PGRES_COMMAND_OK) {
         fprintf(stderr, "Falha na criacao da tabela.\nErro: %s\n", PQerrorMessage(conn));
         close_connection(conn);
+        return EXIT_FAILURE;
     }
-}
-/*
-void show_table(PGconn *conn)
-{
-    PGresult *resultado;
-    char query[LEN];
 
-    fprintf(stdout, "Digite a ")
+    fprintf(stdout, "Inserido com sucesso na tabela.\n");
 }
-*/
-char *getType(char *nomeTab)
+
+void *getType(char *nomeTab, char *result)
 {
     char type[LEN];
     char consulta[LEN];
     char variavel[LEN];
     char arrayQuery[40][LEN];
     char nomeVariavel[LEN];
-    int op, j, lenQuery = 0;
-    fprintf(stdout, "Tipos disponiveis de variaveis: \n");
-    fprintf(stdout, "1 - Inteiro\n2 - Decimal\n3 - varchar\n: ");
+    char Query[LEN];
+    int col, lenQuery = 0;
 
-    /*
-    while (op != 1 || op != 2 || op != 3)
-    {
-        fprintf(stdout, "Por favor digite apenas os numeros permitidos.\n");
-        fprintf(stdout, "1 - Inteiro\n2 - Decimal\n3 - varchar\n: ");
-        scanf("%d", &op);
-    }
-    */
-    for (int i=0 ; i < 40; i++)
-    {
-        j += 1;
-        fprintf(stdout, "Digite o nome da variavel: ");
-        gets(nomeVariavel);
-        
-        fflush(stdin);
+    __fpurge(stdin);
+    fprintf(stdout, "Quantas colunas deseja adicionar? \n: ");
+    scanf("%d", &col);
 
+    for (int i=0 ; i < col; i++)
+    {
+        __fpurge(stdin);
+        fprintf(stdout, "Digite o nome da coluna %d: ", i+1);
+        fgets(nomeVariavel, sizeof(nomeVariavel), stdin);
+
+        fprintf(stdout, "Tipos disponiveis de variaveis: \n");
+        fprintf(stdout, "1 - INTEGER\n2 - DECIMAL\n3 - VARCHAR\n: ");
+        __fpurge(stdin);
         fprintf(stdout, "Digite o tipo da variavel\nOBS: digite o nome do tipo e nao algum dos numeros mostrados acima.\n: ");
-        gets(type);
+        fgets(type, sizeof(type), stdin);
 
-        fflush(stdin);
         sprintf(arrayQuery[i], "%s %s", nomeVariavel, type);
-
-        fprintf(stdout, "Deseja adicionar mais?\n1 - Sim\n2 - Nao\n: ");
-        scanf("%d", &op);
-        if (op == 2)
-            break;
+        __fpurge(stdin);
     }
-
-    for (int i=0; i < j; i++)
+    
+    for (int i=0; i < col; i++) 
     {
         strcat(consulta, arrayQuery[i]);
         strcat(consulta, ",");
@@ -336,8 +323,9 @@ char *getType(char *nomeTab)
     lenQuery = strlen(consulta);
     consulta[lenQuery - 1] = '\0';
 
-    fprintf("String\n%s\n", consulta); 
-    //sprintf(consulta, "CREATE TABLE %s (%s)", nomeTab, nomeVariavel);
+    fprintf(stdout, "String\n%s", consulta); 
+    sprintf(Query, "CREATE TABLE %s (%s)", nomeTab, consulta);
+    strcpy(result, Query);
 }
 
 void specTable(PGconn *conn)
@@ -584,7 +572,7 @@ void rmTabela(PGconn *conn)
 
     sprintf(execucao, "DROP TABLE %s", nomeTab);
 
-    resultado = PQexce(conn, execucao);
+    resultado = PQexec(conn, execucao);
 
     tryError(conn, resultado);
     return;

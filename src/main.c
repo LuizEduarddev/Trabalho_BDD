@@ -27,15 +27,15 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    fprintf(stdout, "----- MENU DE OPCOES -----");
-    fprintf(stdout, "----- 1 - Lista de tabelas -----");
-    fprintf(stdout, "-----  2 - Expecificacoes de campos e tipos de dados -----");
-    fprintf(stdout, "----- 3 - Criar tabela -----");
-    fprintf(stdout, "----- 4 - Inserir dados em tabela -----");
-    fprintf(stdout, "----- 5 -  Exibir os dados em uma tabela -----");
-    fprintf(stdout, "----- 6 - Remover dados em uma tabela -----");
-    fprintf(stdout, "----- ----- ----- ----- ----- -----");
-
+    fprintf(stdout, "-------------------- MENU DE OPCOES --------------------\n");
+    fprintf(stdout, "----- 1 - Lista de tabelas\n");
+    fprintf(stdout, "----- 2 - Expecificacoes de campos e tipos de dados\n");
+    fprintf(stdout, "----- 3 - Criar tabela\n");
+    fprintf(stdout, "----- 4 - Inserir dados em tabela\n");
+    fprintf(stdout, "----- 5 -  Exibir os dados em uma tabela\n");
+    fprintf(stdout, "----- 6 - Remover dados em uma tabela\n");
+    fprintf(stdout, "--------------------------------------------------------\n");
+    fprintf(stdout, ": ");
     scanf("%d", &op);
 
     switch(op)
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
         break;
 
         case 6:
-        
+        rmData(conn);
 
     }
     

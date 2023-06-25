@@ -11,7 +11,7 @@ void tabelasDB(PGconn *conn);
 int isinDB(PGconn *conn, char *nomeCol);
 char *toUper(char *string);
 void create_table(PGconn *conn);
-char *getType(char *nomeTab);
+void *getType(char *nomeTab, char *result);
 char *pegaTipo(PGconn *conn, int NumCol, char *tipoCol, PGresult *resultado);
 void specTable(PGconn *conn);
 void tryError(PGconn *conn, PGresult *resultado);
