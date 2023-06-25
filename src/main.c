@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[])
 {
-    int op = 0;   
+    int op = -10;   
     if (argc != 6) {
         printf("Uso: %s <host> <porta> <banco_de_dados> <usuário> <senha>\n", argv[0]);
         return 1;
@@ -27,43 +27,66 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    fprintf(stdout, "-------------------- MENU DE OPCOES --------------------\n");
-    fprintf(stdout, "----- 1 - Lista de tabelas\n");
-    fprintf(stdout, "----- 2 - Expecificacoes de campos e tipos de dados\n");
-    fprintf(stdout, "----- 3 - Criar tabela\n");
-    fprintf(stdout, "----- 4 - Inserir dados em tabela\n");
-    fprintf(stdout, "----- 5 -  Exibir os dados em uma tabela\n");
-    fprintf(stdout, "----- 6 - Remover dados em uma tabela\n");
-    fprintf(stdout, "--------------------------------------------------------\n");
-    fprintf(stdout, ": ");
-    scanf("%d", &op);
-
-    switch(op)
+    while (op != 0)
     {
-        case 1:
-        tabelasDB(conn);
-        break;
+        fprintf(stdout, "-------------------- MENU DE OPCOES --------------------\n");
+        fprintf(stdout, "----- 0 - Encerrar o programa\n");
+        fprintf(stdout, "----- 1 - Lista de tabelas\n");
+        fprintf(stdout, "----- 2 - Expecificacoes de campos e tipos de dados\n");
+        fprintf(stdout, "----- 3 - Criar tabela\n");
+        fprintf(stdout, "----- 4 - Inserir dados em tabela\n");
+        fprintf(stdout, "----- 5 - Exibir os dados em uma tabela\n");
+        fprintf(stdout, "----- 6 - Remover dados em uma tabela\n");
+        fprintf(stdout, "--------------------------------------------------------\n");
+        fprintf(stdout, ": ");
+        scanf("%d", &op);
+    
+        switch(op)
+        {   
+            case 0:
+            break;
+            
+            case 1:
+            system("clear");
+            tabelasDB(conn);
 
-        case 2:
-        specTable;
-        break;
+            break;
 
-        case 3:
-        create_table(conn);
-        break;
+            case 2:
+            system("clear");
+            specTable(conn);
+            break;
 
-        case 4:
-        insert_intodb(conn);
-        break;
+            case 3:
+            system("clear");
+            create_table(conn);
+            break;
 
-        case 5:
-        showData(conn);
-        break;
+            case 4:
+            system("clear");
+            insert_intodb(conn);
+            break;
 
-        case 6:
-        rmData(conn);
+            case 5:
+            system("clear");
+            showData(conn);
+            break;
 
+            case 6:
+            system("clear");
+            rmData(conn);
+            break;
+
+            default:
+            system("clear");
+            fprintf(stdout, "Indeterminada.\n");
+            break;
+        }
     }
-    
-    
+
+    close_connection(conn);
+    system("clear");
+    fprintf(stdout, "Programa encerrado.\n");
+
+    return 0;
 }

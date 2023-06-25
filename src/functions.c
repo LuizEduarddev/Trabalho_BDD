@@ -24,20 +24,10 @@ void close_connection(PGconn *conn)
 
 void insert_intodb(PGconn *conn)
 {
-    
-    /*
-        Para inserir no database pegamos a struct para a conexao com o db
-        Em seguida pegamos a struct PQresult, que basicamente retorna os dados da tabela
-        E com isso conseguimos manipular o banco de dados
-    */
-
     PGresult *resultado;
 
     resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
 
-    /*
-        O que acontece neste if eh, caso ocorra uma falha na requisao das tabelas, ele retorna um erro e fecha o db
-    */
     if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
     {
         fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
@@ -45,22 +35,25 @@ void insert_intodb(PGconn *conn)
         close_connection(conn);
     }
 
-
     tabelasDB(conn);
 
     char nomeTab[LEN];
     int erro = SUCESSO;
+
+    __fpurge(stdin);
     fprintf(stdout, "Qual tabela deseja inserir um valor? ");
     gets(nomeTab);
 
+    __fpurge(stdin);
     erro = isinDB(conn, nomeTab);
     while (erro == ERRO)
     {
+        __fpurge(stdin);
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
         gets(nomeTab);
         erro = isinDB(conn, nomeTab);
     }
-
+    
     /*
         Este clear serve para limpar o conteudo presente na variavel resultado
         Para que caso venha a ser usada novamente, nao ocorra nenhum tipo de erro
@@ -83,7 +76,7 @@ void insert_intodb(PGconn *conn)
     }
 
     // Pega a quantidade de colunas da tabela
-    int numCol = PQnfields(resultado);
+    int numCol = PQntuples(resultado);
 
     while (op != 1)
     {
@@ -227,10 +220,8 @@ int isinDB(PGconn *conn, char *nomeCol)
         Esta variavel aqui faz o seguinte, pega a quantidade de tabelas baseado no retorno da funcao
         PQexec. 
     */
+
     int lencolunas = PQntuples(resultado);
-
-    fprintf(stdout, "Tabelas presentes no DataBase.\n");
-
     /*Este for retorna o nome de todas as tabelas do DB*/
     /*
         Caso a tabela digita pelo usuario nao existir no banco de dados
@@ -323,7 +314,6 @@ void *getType(char *nomeTab, char *result)
     lenQuery = strlen(consulta);
     consulta[lenQuery - 1] = '\0';
 
-    fprintf(stdout, "String\n%s", consulta); 
     sprintf(Query, "CREATE TABLE %s (%s)", nomeTab, consulta);
     strcpy(result, Query);
 }
@@ -348,12 +338,14 @@ void specTable(PGconn *conn)
 
     char nomeTab[LEN];
     int erro = SUCESSO;
+    __fpurge(stdin);
     fprintf(stdout, "Qual tabela deseja ver os campos e tipos de dado?\n: ");
     gets(nomeTab);
 
     erro = isinDB(conn, nomeTab);
     while (erro == ERRO)
     {
+        __fpurge(stdin);
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
         gets(nomeTab);
         erro = isinDB(conn, nomeTab);
@@ -366,32 +358,40 @@ void specTable(PGconn *conn)
     */
     PQclear(resultado);
 
-    int op = -1;
-    char inserir_tabela[LEN];
-    sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
-    
-    resultado = PQexec(conn, inserir_tabela);
-    
-    /*Caso o resultado de SELECT seja um erro, finaliza a conexao*/
-    if (PQresultStatus(resultado) != PGRES_TUPLES_OK)
+    char consulta[100];
+    sprintf(consulta, "SELECT * FROM %s LIMIT 10", nomeTab);
+    resultado = PQexec(conn, consulta);
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
     {
-        fprintf(stderr, "Erro na busca da tabela.\nErro: %s", PQresultErrorMessage(resultado));
+        fprintf(stderr, "Falha ao executar a consulta: %s\n", PQerrorMessage(conn));
         PQclear(resultado);
-        close_connection(conn);
+        PQfinish(conn);
+        return;
     }
 
-    // Pega a quantidade de colunas da tabela
-    int numCol = PQnfields(resultado);
+    int Ncolunas  = PQntuples(resultado);  
+    int Nlinhas = PQnfields(resultado);
 
-    char nomeCol[30];
-    char tipoCol[30];
-    for (int i=0; i < numCol; i++)
+    if (Ncolunas == 0)
     {
-        printf("Coluna %d.\n", i);
-        printf("Tipo da coluna: %s\n", pegaTipo(conn, i, tipoCol, resultado));
+        fprintf(stdout, "Parece que ainda nao existem dados nesta tabela, insira novos dados e tente novamente.\n");
+        return;
     }
-}
 
+    for (int i=0; i < Ncolunas; i++)
+    {
+        printf("Coluna %d - %s", (i + 1), PQgetvalue(resultado, 0, i));
+        for (int j = 0; j < Nlinhas; i++)
+        {
+            printf("Linha %d valor: %s", (j + 1), PQgetvalue(resultado, i, j));
+        }
+    }
+
+    PQclear(resultado);
+    PQfinish(conn);
+
+    return 0;
+}
 void showData(PGconn *conn)
 {
     PGresult *resultado;
@@ -411,12 +411,14 @@ void showData(PGconn *conn)
     char inserir_tabela[LEN];
     char filter[LEN];
     int erro = SUCESSO;
+    __fpurge(stdin);
     fprintf(stdout, "Qual tabela deseja ver para filtar?\n: ");
     gets(nomeTab);
 
     erro = isinDB(conn, nomeTab);
     while (erro == ERRO)
     {
+        __fpurge(stdin);
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
         gets(nomeTab);
         erro = isinDB(conn, nomeTab);
@@ -435,13 +437,15 @@ void showData(PGconn *conn)
     resultado = PQexec(conn, inserir_tabela);
     tryError(conn, resultado);
 
-    
+    __fpurge(stdin);
     fprintf(stdout, "Digite o nome da coluna: ");
     gets(nomeCol);
 
+    __fpurge(stdin);
     fprintf(stdout, "Certo, agora escolha um valor para filtrar\nOBS: O valor pode ser um nome, uma string ou até mesmo um número float ou inteiro\n: ");
     gets(filter);
 
+    __fpurge(stdin);
     fprintf(stdout, "Perfeito, agora como deve ser feita esta filtragem?\nEscolha algum dos itens do menu\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual\n");
     strcpy(inserir_tabela, cathSwitch(nomeCol, filter, nomeTab)); 
 
@@ -528,6 +532,8 @@ void rmData(PGconn *conn)
     char filter[LEN];
     int erro = SUCESSO;
     int op = 0;
+
+    __fpurge(stdin);
     fprintf(stdout, "Estas sao as tabelas disponiveis, deseja apagar uma tabela, ou um item de uma tabela?1 - Apagar a tabela\n2 - Apagar um item da tabela\n: ");
     scanf("%d", &op);
 
@@ -556,17 +562,21 @@ void rmTabela(PGconn *conn)
     int erro = SUCESSO;
     int op = 0;
 
+    __fpurge(stdin);
     fprintf(stdout, "Digite o nome da tabela que deseja remover.\n: ");
     gets(nomeTab);
 
     erro = isinDB(conn, nomeTab);
     while (erro == ERRO)
     {
+        __fpurge(stdin);
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
         gets(nomeTab);
         erro = isinDB(conn, nomeTab);
     }
 
+
+    __fpurge(stdin);
     fprintf(stdout, "Ao fazer isto, TODOS os dados de sua tabela serao apagados, tem certeza que quer fazer isto?\n1 - Sim, sei de todos os problemas que isto pode causar\n2 - Nao, nao quero fazer isto\n: ");
     scanf("%d", &op);
 
@@ -587,12 +597,14 @@ void rmItem(PGconn *conn)
     char nomeCol[LEN];
     int erro = SUCESSO;
 
+    __fpurge(stdin);
     fprintf(stdout, "Certo, e de qual tabela deseja apagar algum item?\n: ");
     gets(nomeTab);
 
     erro = isinDB(conn, nomeTab);
     while (erro == ERRO)
     {
+        __fpurge(stdin);
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
         gets(nomeTab);
         erro = isinDB(conn, nomeTab);
@@ -602,9 +614,11 @@ void rmItem(PGconn *conn)
 
     resultado = PQexec(conn, search);
     
+    __fpurge(stdin);
     fprintf(stdout, "OK!\nAgora digite o valor que desejar deletar\nEX: nome = joao (todos os joao serao apagados da coluna nome.)\n: ");
     gets(filtro);
 
+    __fpurge(stdin);
     fprintf(stdout, "PERFEITO!\nAgora digite o nome da coluna que tera o item deletado.\n: ");
     gets(nomeCol);
 
@@ -617,7 +631,8 @@ void switchItem(PGconn *conn, char *nomeTab, char *filter, char *nomeCol)
 {
     int op = 0;
     char retorno[LEN];
-    //1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual
+    
+    __fpurge(stdin);
     printf(": ");
     scanf("%d", &op);
 
