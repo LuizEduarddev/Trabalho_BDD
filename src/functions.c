@@ -20,10 +20,12 @@
 void close_connection(PGconn *conn)
 {
     PQfinish(conn);
+    exit(0);
 }
 
 void insert_intodb(PGconn *conn)
 {
+
     PGresult *resultado;
 
     resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
@@ -42,7 +44,7 @@ void insert_intodb(PGconn *conn)
 
     __fpurge(stdin);
     fprintf(stdout, "Qual tabela deseja inserir um valor? ");
-    gets(nomeTab);
+    scanf("%s%*c", nomeTab);
 
     __fpurge(stdin);
     erro = isinDB(conn, nomeTab);
@@ -50,7 +52,7 @@ void insert_intodb(PGconn *conn)
     {
         __fpurge(stdin);
         fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
-        gets(nomeTab);
+        scanf("%s", nomeTab);
         erro = isinDB(conn, nomeTab);
     }
     
@@ -61,10 +63,10 @@ void insert_intodb(PGconn *conn)
     */
     PQclear(resultado);
 
-    int op = -1;
+    int number = 0;
     char inserir_tabela[LEN];
     sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
-    
+
     resultado = PQexec(conn, inserir_tabela);
     
     /*Caso o resultado de SELECT seja um erro, finaliza a conexao*/
@@ -75,118 +77,87 @@ void insert_intodb(PGconn *conn)
         close_connection(conn);
     }
 
-    // Pega a quantidade de colunas da tabela
-    int numCol = PQntuples(resultado);
 
-    while (op != 1)
+    int numCol = PQnfields(resultado);
+    char nomeCol[LEN];
+    char tipoCol[LEN];
+    char Query[LEN];
+    char dado[LEN];
+
+    sprintf(Query, "INSERT INTO %s values (", nomeTab);
+
+    for (int i=0; i < numCol; i++)
     {
-        char nomeCol[30];
-        char tipoCol[30];
-        for (int i=0; i < numCol; i++)
+        __fpurge(stdin);
+        printf("Coluna: %d\n", i+1);
+        printf("Tipo da coluna: %s\n", pegaTipo(tipoCol, resultado, i));
+        printf("Nome da coluna - %s\n", PQfname(resultado, i));
+
+        fprintf(stdout, "Digite o dado: ");
+        gets(dado);
+
+        getype(tipoCol, Query, dado);
+        
+        if (i < numCol - 1)
         {
-            printf("Coluna %d.\n", i);
-            printf("Tipo da coluna: %s", pegaTipo(conn, i, tipoCol, resultado));
-            printf("Nome da coluna %s", PQfname(resultado, i));
-            
-            strcpy(nomeCol, PQfname(resultado, i));
-            strcpy(tipoCol, pegaTipo(conn, i, tipoCol, resultado));
-
-            funcType(conn, nomeCol, tipoCol, nomeTab);
-
-            fprintf(stdout, "Inserido com sucesso.\n");
-
-            fprintf(stdout, "Deseja inserir mais algum dado na tabela?\n0 - Sim\n1 - Nao");
-            scanf("%d", &op);
+            strcat(Query, ", ");
         }
     }
-}
 
-char *pegaTipo(PGconn *conn, int i, char *tipoCol, PGresult *resultado)
-{
-    Oid columnType = PQftype(resultado, i);
-    char *typeName;
-    // Consulta o catálogo do sistema pg_type para obter o nome do tipo de dados
-    PGresult *typeResult = PQexecParams(conn, "SELECT typname FROM pg_type WHERE oid = $1", 1, NULL, &columnType, NULL, NULL, 0);
-    if (PQresultStatus(typeResult) == PGRES_TUPLES_OK && PQntuples(typeResult) > 0) {
-        typeName = PQgetvalue(typeResult, 0, 0);
-        printf("Tipo de dados da coluna %d: %s\n", i, typeName);
+    strcat(Query, ")");
+    strcat(Query, "\0");
+    
+    resultado = PQexec(conn, Query);
+
+    if (PQresultStatus(resultado) != PGRES_COMMAND_OK)
+    {
+        printf("Erro ao inserir valores: %s\n", PQresultErrorMessage(resultado));
+        return;
     }
-
-    return typeName;
-}
-
-void funcType(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
-{
-    if (strcmp(tipoCol, "integer") == 0)
-        GoToInteger(conn, nomeCol, tipoCol, nomeTab);
-    else if(strcmp(tipoCol, "decimal") == 0 || strcmp(tipoCol, "numeric") == 0)
-        GoToNumeric(conn,nomeCol, tipoCol, nomeTab);
-    else if(strcmp(tipoCol, "varchar") == 0)
-        GoToString(conn, nomeCol, tipoCol, nomeTab);
     else
     {
-        fprintf(stdout, "Erro ao detectar o tipo da coluna.\n");
-        close_connection(conn);
+        printf("Inserido com sucesso!\n");
+    }
+
+    
+}
+
+void getype(char *tipo, char *query, char *dado)
+{
+    if (strcmp(tipo, "integer") == 0|| strcmp(tipo, "decimal") == 0)
+    {
+        strcat(query, dado);
+    }
+    else if(strcmp(tipo, "varchar") == 0)
+    {
+        strcat(query, "'");
+        strcat(query, dado);
+        strcat(query, "'");
     }
 }
 
-void GoToInteger(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
+char *pegaTipo(char *tipoCol, PGresult *resultado, int numCol)
 {
-    PGresult *res;
-    int valor;
-    char consulta[LEN];
+    Oid tipoColuna = PQftype(resultado, numCol);
 
-    fprintf(stdout, "Digite um valor inteiro para ser inserido na coluna '%s': ", nomeCol);
-    scanf("%d", &valor);
-
-    sprintf(consulta, "INSERT INTO %s (%s) VALUES (%d)", nomeTab, nomeCol, valor);
-
-    res = PQexec(conn, consulta);
-
-    if(PQresultStatus(res) != PGRES_COMMAND_OK)
+    if (tipoColuna == 23)
     {
-        fprintf(stdout, "Erro ao tentar executar a acao.\nErro: %s", PQresultErrorMessage(res));
-        close_connection(conn);
+        strcpy(tipoCol, "integer");
+        return "integer";
     }
-}
-
-void GoToNumeric(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
-{
-    PGresult *res;
-    float valor;
-    char consulta[LEN];
-
-    fprintf(stdout, "Digite um valor float para ser inserido na coluna '%s': ", nomeCol);
-    scanf("%f", &valor);
-
-    sprintf(consulta, "INSERT INTO %s (%s) VALUES (%f)", nomeTab, nomeCol, valor);
-
-    res = PQexec(conn, consulta);
-
-    if(PQresultStatus(res) != PGRES_COMMAND_OK)
+    else if(tipoColuna == 1700)
     {
-        fprintf(stdout, "Erro ao tentar executar a acao.\nErro: %s", PQresultErrorMessage(res));
-        close_connection(conn);
+        strcpy(tipoCol, "decimal");
+        return "decimal";
     }
-}
-
-void GoToString(PGconn *conn, char *nomeCol, char *tipoCol, char *nomeTab)
-{
-    PGresult *res;
-    char valor[LEN];
-    char consulta[LEN];
-
-    fprintf(stdout, "Digite uma string para ser inserido na coluna '%s': ", nomeCol);
-    gets(valor);
-
-    sprintf(consulta, "INSERT INTO %s (%s) VALUES ('%s')", nomeTab, nomeCol, valor);
-
-    res = PQexec(conn, consulta);
-
-    if(PQresultStatus(res) != PGRES_COMMAND_OK)
+    else if(tipoColuna == 1043)
     {
-        fprintf(stdout, "Erro ao tentar executar a acao.\nErro: %s", PQresultErrorMessage(res));
-        close_connection(conn);
+        strcpy(tipoCol, "varchar");
+        return "varchar";
+    }
+    else
+    {
+        return "Tipo nao detectado";
     }
 }
 
@@ -336,6 +307,7 @@ void specTable(PGconn *conn)
 
     tabelasDB(conn);
 
+    char tipoCol[LEN];
     char nomeTab[LEN];
     int erro = SUCESSO;
     __fpurge(stdin);
@@ -359,7 +331,7 @@ void specTable(PGconn *conn)
     PQclear(resultado);
 
     char consulta[100];
-    sprintf(consulta, "SELECT * FROM %s LIMIT 10", nomeTab);
+    sprintf(consulta, "SELECT * FROM %s", nomeTab);
     resultado = PQexec(conn, consulta);
     if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
     {
@@ -369,29 +341,48 @@ void specTable(PGconn *conn)
         return;
     }
 
-    int Ncolunas  = PQntuples(resultado);  
-    int Nlinhas = PQnfields(resultado);
+    int Nlinhas  = PQntuples(resultado);  
+    int Ncolunas = PQnfields(resultado);
 
+    
     if (Ncolunas == 0)
     {
-        fprintf(stdout, "Parece que ainda nao existem dados nesta tabela, insira novos dados e tente novamente.\n");
-        return;
-    }
+        printf("Tabela sem dados.\n");
 
-    for (int i=0; i < Ncolunas; i++)
-    {
-        printf("Coluna %d - %s", (i + 1), PQgetvalue(resultado, 0, i));
-        for (int j = 0; j < Nlinhas; i++)
+        for(int n=0; n < Ncolunas; n++)
         {
-            printf("Linha %d valor: %s", (j + 1), PQgetvalue(resultado, i, j));
+            printf("Coluna - %d\n", n + 1);
+            printf("Tipo - %s\n", pegaTipo(tipoCol, resultado, n));
+            printf("Nome da coluna: %s\n", PQfname(resultado, n));
         }
     }
+    else
+    {
+        for(int l=0; l < Nlinhas; l++)
+        {
+            printf("Linha: %d\n", l);
 
+            for(int n=0; n < Ncolunas; n++)
+            {
+                printf("Dado da coluna %s: %s (%s)\n",PQfname(resultado, n), PQgetvalue(resultado, l, n), pegaTipo(tipoCol, resultado, n));
+            }
+        }
+    }
+    
     PQclear(resultado);
-    PQfinish(conn);
-
     return 0;
 }
+
+void tryError(PGconn *conn, PGresult *resultado)
+{
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
+    {
+        fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
+        PQclear(resultado);
+        close_connection(conn);
+    }
+}
+
 void showData(PGconn *conn)
 {
     PGresult *resultado;
@@ -455,16 +446,6 @@ void showData(PGconn *conn)
     if (PQresultStatus(resultado) != PGRES_TUPLES_OK)
     {
         fprintf(stderr, "Erro na busca da tabela.\nErro: %s", PQresultErrorMessage(resultado));
-        PQclear(resultado);
-        close_connection(conn);
-    }
-}
-
-void tryError(PGconn *conn, PGresult *resultado)
-{
-    if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
-    {
-        fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
         PQclear(resultado);
         close_connection(conn);
     }

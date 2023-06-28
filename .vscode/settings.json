@@ -1,5 +1,12 @@
 {
     "files.associations": {
         "libpq-fe.h": "c"
-    }
+    },
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/mnt/e/Documents/Faculdade/3_Semestre/Banco_de_Dados/Trabalho_BDD",
+            "binaryPath": "/mnt/e/Documents/Faculdade/3_Semestre/Banco_de_Dados/Trabalho_BDD/start",
+            "binaryArgs": []
+        }
+    ]
 }

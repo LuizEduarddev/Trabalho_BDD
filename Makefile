@@ -5,13 +5,13 @@ LDFLAGS = -lpq
 all: start
 
 start: main.o functions.o
-	$(CC) -o start main.o functions.o $(LDFLAGS)
+	$(CC) -o start main.o functions.o $(LDFLAGS) 
 
 main.o: src/main.c files/functions.h
-	$(CC) $(CFLAGS) src/main.c -c
+	$(CC) $(CFLAGS) src/main.c -c 
 
 functions.o: src/functions.c files/functions.h
-	$(CC) $(CFLAGS) src/functions.c -c
+	$(CC) $(CFLAGS) src/functions.c -c 
 
 run: start
 	./start localhost 5432 postgres postgres 1234 

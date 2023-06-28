@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    PQfinish(conn);
     close_connection(conn);
     system("clear");
     fprintf(stdout, "Programa encerrado.\n");

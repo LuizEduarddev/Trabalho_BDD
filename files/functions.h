@@ -12,7 +12,7 @@ int isinDB(PGconn *conn, char *nomeCol);
 char *toUper(char *string);
 void create_table(PGconn *conn);
 void *getType(char *nomeTab, char *result);
-char *pegaTipo(PGconn *conn, int NumCol, char *tipoCol, PGresult *resultado);
+char *pegaTipo(char *tipoCol, PGresult *resultado, int numCol);
 void specTable(PGconn *conn);
 void tryError(PGconn *conn, PGresult *resultado);
 char *cathSwitch(char *nomeCol, char *filter, char *nome_tab);
