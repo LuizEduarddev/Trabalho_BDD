@@ -718,5 +718,5 @@ void showTable(int Nlinhas, int Ncolunas, PGresult *resultado, char *tipoCol)
     }
 }
 
-
+// FINALIZADO GRACAS A DEUS
 
