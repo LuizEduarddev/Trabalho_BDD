@@ -15,11 +15,14 @@ void *getType(char *nomeTab, char *result);
 char *pegaTipo(char *tipoCol, PGresult *resultado, int numCol);
 void specTable(PGconn *conn);
 void tryError(PGconn *conn, PGresult *resultado);
-char *cathSwitch(char *nomeCol, char *filter, char *nome_tab);
+void cathSwitch(char *nomeCol, char *filter, char *nomeTab, char *insert);
 void showData(PGconn *conn);
 void rmData(PGconn *conn);
 void rmTabela(PGconn *conn);
 void rmItem(PGconn *conn);
 void switchItem(PGconn *conn, char *nomeTab, char *filtro, char *nomeCol);
+void minuscula(char *str);
+void pegatipoFor(int Ncolunas, PGresult *resultado, char *tipoCol, char *nomeCol);
+void cathSwitchSTR(char *nomeCol, char *filter, char *nomeTab, char *insert);
 
 #endif

@@ -25,107 +25,80 @@ void close_connection(PGconn *conn)
 
 void insert_intodb(PGconn *conn)
 {
-    PGresult *res;
+    PGresult *resultado;
 
-    // Pega nome da tabela do usuário
-    char tabela[20];
-    printf("Digite o nome da tabela para inserir os valores: ");
-    fgets(tabela, 20, stdin);
-    scanf("%[^\n]", tabela);
+    resultado = PQexec(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
 
-    // Busca nomes e tipos de coluna para a tabela
-    char query[300];
-    snprintf(query, sizeof(query),
-             "SELECT column_name, data_type FROM "
-             "information_schema.COLUMNS WHERE table_schema = 'public' AND "
-             "table_name = '%s';",
-             tabela);
-    res = PQexec(conn, query);
-
-    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK) 
     {
-        printf("Ocorreu um erro na query: %s\n", PQresultErrorMessage(res));
-        PQclear(res);
-        return;
+        fprintf(stderr, "Falha na execucao da Query: %s\n", PQerrorMessage(conn));
+        PQclear(resultado);
+        close_connection(conn);
     }
 
-    int numColumns = PQntuples(res);
-    if (numColumns == 0)
+    tabelasDB(conn);
+
+    char nomeTab[LEN];
+    int erro = SUCESSO;
+
+    __fpurge(stdin);
+    fprintf(stdout, "Qual tabela deseja inserir um valor? ");
+    scanf("%s%*c", nomeTab);
+
+    __fpurge(stdin);
+    erro = isinDB(conn, nomeTab);
+    while (erro == ERRO)
     {
-        printf("Não foram encontrados campos para a tabela '%s'.\n", tabela);
-        PQclear(res);
-        return;
+        __fpurge(stdin);
+        fprintf(stdout, "A tabela digitada nao parece estar em nosso banco de dados\nPor favor, tente novamente: ");
+        scanf("%s", nomeTab);
+        erro = isinDB(conn, nomeTab);
+    }
+    
+    /*
+        Este clear serve para limpar o conteudo presente na variavel resultado
+        Para que caso venha a ser usada novamente, nao ocorra nenhum tipo de erro
+        como substituicao dos dados.
+    */
+    PQclear(resultado);
+
+    int number = 0;
+    char inserir_tabela[LEN];
+    sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
+
+    resultado = PQexec(conn, inserir_tabela);
+    
+    /*Caso o resultado de SELECT seja um erro, finaliza a conexao*/
+    if (PQresultStatus(resultado) != PGRES_TUPLES_OK)
+    {
+        fprintf(stderr, "Erro na busca da tabela.\nErro: %s", PQresultErrorMessage(resultado));
+        PQclear(resultado);
+        close_connection(conn);
     }
 
-    // Solicita ao usuário os valores de cada coluna
-    printf("Inserindo valores na tabela '%s':\n", tabela);
-    char insertQuery[500];
-    snprintf(insertQuery, sizeof(insertQuery), "INSERT INTO %s (", tabela);
+    int numCol = PQnfields(resultado);
 
-    char inputValues[numColumns][50]; // Array para armazenar os valores de entrada do usuário
-
-    for (int i = 0; i < numColumns; i++)
+    printf("Quantos dados deseja inserir na tabela?\n: ");
+    scanf("%d", &number);
+    for(int j=0 ; j < number; j++)
     {
-        char columnName[50];
-        char columnType[50];
-
-        strncpy(columnName, PQgetvalue(res, i, 0), sizeof(columnName));
-        strncpy(columnType, PQgetvalue(res, i, 1), sizeof(columnType));
-
-        // Tira todos os espaços à esquerda/à direita do nome da coluna
-        char *trimmedColumnName = strtok(columnName, " ");
-        if (trimmedColumnName != NULL)
+        char nomeCol[LEN];
+        char tipoCol[LEN];
+        char Query[numCol][LEN];
+        for (int i=0; i < numCol; i++)
         {
-            strncpy(columnName, trimmedColumnName, sizeof(columnName));
-        }
+            __fpurge(stdin);
+            printf("Coluna: %d\n", i+1);
+            printf("Tipo da coluna: %s\n", pegaTipo(tipoCol, resultado, i));
+            printf("Nome da coluna - %s\n", PQfname(resultado, i));
 
-        // Solicita ao usuário o valor de cada coluna
-        printf("Digite o valor para a coluna '%s' (%s): ", columnName, columnType);
+            strcpy(nomeCol, PQfname(resultado, i));
+            funcType(conn, nomeCol, tipoCol, nomeTab);
 
-        // Lê o valor de entrada para cada coluna
-        fgets(inputValues[i], sizeof(inputValues[i]), stdin);
-        scanf("%[^\n]", inputValues[i]);
-        strtok(inputValues[i], "\n");
-
-        // Concatena o nome da coluna para a query INSERT
-        strcat(insertQuery, columnName);
-
-        // Adiciona vírgula se não for a última coluna
-        if (i < numColumns - 1)
-        {
-            strcat(insertQuery, ", ");
-        }
-    }
-
-    // Completa a query INSERT com os VALUES
-    strcat(insertQuery, ") VALUES (");
-
-    for (int i = 0; i < numColumns; i++)
-    {
-        strcat(insertQuery, "'");
-        strcat(insertQuery, inputValues[i]);
-        strcat(insertQuery, "'");
-
-        // Adiciona vírgula se não for a última coluna
-        if (i < numColumns - 1)
-        {
-            strcat(insertQuery, ", ");
+            printf("Inserido com sucesso!\n");
+            
         }
     }
-
-    strcat(insertQuery, ");");
-    res = PQexec(conn, insertQuery);
-
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
-    {
-        printf("Erro ao inserir valores: %s\n", PQresultErrorMessage(res));
-    }
-    else
-    {
-        printf("Valores inseridos com sucesso!\n");
-    }
-
-    PQclear(res);
 }
 
 char *pegaTipo(char *tipoCol, PGresult *resultado, int numCol)
@@ -426,24 +399,7 @@ void specTable(PGconn *conn)
             printf("Nome da coluna: %s\n", PQfname(resultado, n));
         }
     }
-    else
-    {
-        for (int i=0; i < Ncolunas; i++)
-        {
-            printf("Coluna %d -  %s", (i + 1), PQgetvalue(resultado, 0, i));
-            for (int j = 0; j < Nlinhas; i++)
-            {
-                printf("Linha %d valor: %s", (j + 1), PQgetvalue(resultado, i, j));
-            }
-        }
-
-        for(int n=0; n < Nlinhas; n++)
-        {
-            printf("Coluna - %d\n", n + 1);
-            printf("Tipo - %s\n", pegaTipo(tipoCol, resultado, n));
-            printf("Nome da coluna %s\n", PQfname(resultado, n));
-        }
-    }
+    
     
     printf("Valor de Ncolunas:%d\nValor de Nlinhas: %d", Ncolunas, Nlinhas);
 

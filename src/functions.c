@@ -343,32 +343,9 @@ void specTable(PGconn *conn)
 
     int Nlinhas  = PQntuples(resultado);  
     int Ncolunas = PQnfields(resultado);
-
     
-    if (Ncolunas == 0)
-    {
-        printf("Tabela sem dados.\n");
+    showTable(Nlinhas, Ncolunas, resultado, tipoCol);
 
-        for(int n=0; n < Ncolunas; n++)
-        {
-            printf("Coluna - %d\n", n + 1);
-            printf("Tipo - %s\n", pegaTipo(tipoCol, resultado, n));
-            printf("Nome da coluna: %s\n", PQfname(resultado, n));
-        }
-    }
-    else
-    {
-        for(int l=0; l < Nlinhas; l++)
-        {
-            printf("Linha: %d\n", l);
-
-            for(int n=0; n < Ncolunas; n++)
-            {
-                printf("Dado da coluna %s: %s (%s)\n",PQfname(resultado, n), PQgetvalue(resultado, l, n), pegaTipo(tipoCol, resultado, n));
-            }
-        }
-    }
-    
     PQclear(resultado);
     return 0;
 }
@@ -401,6 +378,7 @@ void showData(PGconn *conn)
     char typeCol[LEN];
     char inserir_tabela[LEN];
     char filter[LEN];
+    char type[LEN];
     int erro = SUCESSO;
     __fpurge(stdin);
     fprintf(stdout, "Qual tabela deseja ver para filtar?\n: ");
@@ -422,7 +400,18 @@ void showData(PGconn *conn)
     */
     PQclear(resultado);
 
-    fprintf(stdout, "OK!\nAgora precisamos filtar.\nA filtragem é simples, primeiro escolha uma coluna, a tabela gerada será baseada nesta coluna.\nEX: coluna_nome = joao. O resultado sera uma tabela com todos os nomes joao.");
+    char query[LEN];
+    sprintf(query, "SELECT * FROM %s", nomeTab);
+
+    resultado = PQexec(conn, query);
+
+    int Nlinhas = PQntuples(resultado);
+    int Ncolunas = PQnfields(resultado);
+    char tipoCol[LEN];
+
+    showTable(Nlinhas, Ncolunas, resultado, tipoCol);
+
+    fprintf(stdout, "OK!\nAgora precisamos filtar.\nA filtragem é simples, primeiro escolha uma coluna, a tabela gerada será baseada nesta coluna.\nEX: coluna_nome = joao. O resultado sera uma tabela com todos os nomes joao.\n");
     
     sprintf(inserir_tabela, "SELECT * FROM %s", nomeTab);
     resultado = PQexec(conn, inserir_tabela);
@@ -437,8 +426,25 @@ void showData(PGconn *conn)
     gets(filter);
 
     __fpurge(stdin);
-    fprintf(stdout, "Perfeito, agora como deve ser feita esta filtragem?\nEscolha algum dos itens do menu\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual\n");
-    strcpy(inserir_tabela, cathSwitch(nomeCol, filter, nomeTab)); 
+    
+    pegatipoFor(Ncolunas, resultado, type, nomeCol);
+
+    if (strcmp(type, "integer") == 0 || strcmp(type, "decimal") == 0)
+    {
+        cathSwitch(nomeCol, filter, nomeTab, inserir_tabela);
+    }
+    else if (strcmp(type, "varchar") == 0)
+    {
+        sprintf(inserir_tabela, "SELECT * FROM %s WHERE %s LIKE '%%%s%%'", nomeTab, nomeCol, filter);
+    }
+    else
+    {
+        printf("tipo nao detectado.\n");
+        return;
+    }
+
+
+    PQclear(resultado);
 
     resultado = PQexec(conn, inserir_tabela);
     
@@ -449,10 +455,44 @@ void showData(PGconn *conn)
         PQclear(resultado);
         close_connection(conn);
     }
+
+    Nlinhas = PQntuples(resultado);
+    Ncolunas = PQnfields(resultado);
+
+    printf("Resultado:\n");
+
+    for (int i = 0; i < Nlinhas; i++) 
+    {
+        for (int j = 0; j < Ncolunas; j++) 
+        {
+            printf("%s\n", PQgetvalue(resultado, i, j));
+        }
+    }
+
+    PQclear(resultado);
+    PQfinish(conn);
+    
 }
 
-char *cathSwitch(char *nomeCol, char *filter, char *nomeTab)
+void pegatipoFor(int Ncolunas, PGresult *resultado, char *tipoCol, char *nomeCol)
 {
+    char search[LEN];
+    char lixo[LEN];
+    for(int n=0; n < Ncolunas; n++)
+    {
+        strcpy(search, PQfname(resultado, n));
+        if (strcmp(nomeCol, search) == 0)
+        {
+            strcpy(tipoCol, pegaTipo(tipoCol, resultado, n));
+            break;
+        }
+    }
+    return;
+}
+
+void cathSwitch(char *nomeCol, char *filter, char *nomeTab, char *insert)
+{
+    fprintf(stdout, "Perfeito, agora como deve ser feita esta filtragem?\nEscolha algum dos itens do menu\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual\nOBS: Agora sim a escolha deve ser um dos numeros\n");
     int op = 0;
     char retorno[LEN];
     //1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual
@@ -462,35 +502,30 @@ char *cathSwitch(char *nomeCol, char *filter, char *nomeTab)
     switch(op)
     {
         case 1:
-        sprintf(retorno, "SELECT * FROM %s WHERE %s > %s", nomeTab, nomeCol, filter);
-        return retorno;
-        break;
+        sprintf(insert, "SELECT * FROM %s WHERE %s > %s", nomeTab, nomeCol, filter);
+        return;
 
         case 2:
-        sprintf(retorno, "SELECT * FROM %s WHERE %s >= %s", nomeTab, nomeCol, filter);
-        return retorno;
-        break;
+        sprintf(insert, "SELECT * FROM %s WHERE %s >= %s", nomeTab, nomeCol, filter);
+        return;
 
         case 3:
-        sprintf(retorno, "SELECT * FROM %s WHERE %s < %s", nomeTab, nomeCol, filter);
-        return retorno;
-        break;
+        sprintf(insert, "SELECT * FROM %s WHERE %s < %s", nomeTab, nomeCol, filter);
+        return;
 
         case 4:
-        sprintf(retorno, "SELECT * FROM %s WHERE %s <= %s", nomeTab, nomeCol, filter);
-        return retorno;
-        break;
+        sprintf(insert, "SELECT * FROM %s WHERE %s <= %s", nomeTab, nomeCol, filter);
+        return;
 
         case 5:
-        sprintf(retorno, "SELECT * FROM %s WHERE %s != %s", nomeTab, nomeCol, filter);
-        return retorno;
-        break;
+        sprintf(insert, "SELECT * FROM %s WHERE %s != %s", nomeTab, nomeCol, filter);
+        return;
 
         case 6:
-        sprintf(retorno, "SELECT * FROM %s WHERE %s = %s", nomeTab, nomeCol, filter);
-        return retorno;
-        break;
+        sprintf(insert, "SELECT * FROM %s WHERE %s = %s", nomeTab, nomeCol, filter);
+        return;
     }
+    
 }
 
 void rmData(PGconn *conn)
@@ -515,7 +550,7 @@ void rmData(PGconn *conn)
     int op = 0;
 
     __fpurge(stdin);
-    fprintf(stdout, "Estas sao as tabelas disponiveis, deseja apagar uma tabela, ou um item de uma tabela?1 - Apagar a tabela\n2 - Apagar um item da tabela\n: ");
+    fprintf(stdout, "Estas sao as tabelas disponiveis, deseja apagar uma tabela, ou um item de uma tabela?\n1 - Apagar a tabela\n2 - Apagar um item da tabela\n: ");
     scanf("%d", &op);
 
     if (op == 1)
@@ -565,7 +600,10 @@ void rmTabela(PGconn *conn)
 
     resultado = PQexec(conn, execucao);
 
-    tryError(conn, resultado);
+    if (PQresultStatus(resultado) != PGRES_COMMAND_OK) 
+    {
+        printf("Erro ao deletar a tabela: %s\n", PQresultErrorMessage(resultado));
+    }
     return;
 }
 
@@ -596,6 +634,8 @@ void rmItem(PGconn *conn)
     resultado = PQexec(conn, search);
     
     __fpurge(stdin);
+    int Nlinhas  = PQntuples(resultado);  
+    
     fprintf(stdout, "OK!\nAgora digite o valor que desejar deletar\nEX: nome = joao (todos os joao serao apagados da coluna nome.)\n: ");
     gets(filtro);
 
@@ -603,7 +643,7 @@ void rmItem(PGconn *conn)
     fprintf(stdout, "PERFEITO!\nAgora digite o nome da coluna que tera o item deletado.\n: ");
     gets(nomeCol);
 
-    fprintf(stdout, "So mais uma coisinha, digite o tipo da exclusao\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual");
+    fprintf(stdout, "So mais uma coisinha, digite o tipo da exclusao\n1 - Maior\n2 - Maior ou igual\n3 - Menor\n4 - Menor ou igual\n5 - Diferente de\n6 - Igual\nOBS: Agora sim é necessario digitar o numero");
 
     switchItem(conn, nomeTab, filtro, nomeCol);
 }
@@ -650,3 +690,33 @@ void switchItem(PGconn *conn, char *nomeTab, char *filter, char *nomeCol)
         break;
     }
 }
+
+void showTable(int Nlinhas, int Ncolunas, PGresult *resultado, char *tipoCol)
+{
+    if (Nlinhas == 0)
+    {
+        printf("Tabela sem dados.\n");
+
+        for(int n=0; n < Ncolunas; n++)
+        {
+            printf("Coluna - %d\n", n + 1);
+            printf("Tipo - %s\n", pegaTipo(tipoCol, resultado, n));
+            printf("Nome da coluna: %s\n", PQfname(resultado, n));
+        }
+    }
+    else
+    {
+        for(int l=0; l < Nlinhas; l++)
+        {
+            printf("Linha: %d\n", l);
+
+            for(int n=0; n < Ncolunas; n++)
+            {
+                printf("Dado da coluna %s: %s (%s)\n",PQfname(resultado, n), PQgetvalue(resultado, l, n), pegaTipo(tipoCol, resultado, n));
+            }
+        }
+    }
+}
+
+
+
